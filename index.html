@@ -6,7 +6,7 @@
     <title>Odliczanie do Urodzin Bartka</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Tone.js do generowania fanfar o 00:00 -->
+    <!-- Tone.js do generowania fanfar o 00:00 oraz groźnej muzyki w stylu Gotham -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <!-- Font Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -92,13 +92,13 @@
 
         /* Płynna animacja transformacji Batmana przy kliknięciu */
         .bartek-stage.morph-launching {
-            transform: scale(1.22) rotate(-3deg);
+            transform: scale(1.24) rotate(-3deg);
             border-color: #38bdf8;
             box-shadow: 0 0 60px rgba(56, 189, 248, 0.9), 0 0 100px rgba(251, 191, 36, 0.8);
         }
 
         .bartek-stage.morph-launching .bartek-svg-dancer {
-            animation: heroLeapOut 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            animation: heroLeapOut 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
         @keyframes heroLeapOut {
@@ -301,11 +301,11 @@
     <!-- Canvas dla fajerwerków odpalanych o 00:00 -->
     <canvas id="fireworksCanvas"></canvas>
 
-    <!-- Pełnoekranowa mini-gra komiksowa uruchamiana po kliknięciu tańczącego Batmana -->
+    <!-- Pełnoekranowa mini-gra komiksowa -->
     <div id="gameOverlay">
         <canvas id="gameCanvas"></canvas>
 
-        <!-- Przyciski w rogu: wyciszenie groźnej muzyki i powrót -->
+        <!-- Sterowanie dźwiękiem i wyjściem -->
         <div class="fixed bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
             <button id="toggleMusicBtn" class="px-3 py-1.5 rounded-lg bg-slate-950/90 hover:bg-slate-900 border-2 border-slate-600 text-[11px] font-extrabold text-amber-300 shadow-lg cursor-pointer">
                 🔊 MUZYKA: WŁ.
@@ -375,7 +375,7 @@
             
             <!-- Górna sekcja: Tańczący Bartman na szczycie strony -->
             <div class="mb-6">
-                <div id="bartmanTrigger" class="bartek-stage" title="Tańczący Bartman">
+                <div id="bartmanTrigger" class="bartek-stage">
                     <div class="stage-moon"></div>
                     <div class="stage-spotlight"></div>
                     
@@ -961,7 +961,7 @@
         setInterval(rotateMotivationQuote, 9000);
 
         // =========================================================================
-        // KOMIKSOWA MINI-GRA: BATMAN vs RAFAŁ BRZÓZKA + GROŹNA MUZYKA ALA GOTHAM
+        // KOMIKSOWA MINI-GRA: BATMAN vs RAFAŁ BRZÓZKA + GROŹNA MUZYKA GOTHAM (Tone.js)
         // =========================================================================
         const bartmanTrigger = document.getElementById('bartmanTrigger');
         const gameOverlay = document.getElementById('gameOverlay');
@@ -990,95 +990,96 @@
 
         let gameActive = false;
         let gameAnimId = null;
-        let audioCtx = null;
         let musicEnabled = true;
-        let bgmInterval = null;
-        let bgmStep = 0;
 
-        function ensureAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume().catch(() => {});
+        // Silnik groźnej, kinowej muzyki w stylu mrocznego Gotham (Tone.js - 100% autorski)
+        let gothamMusicNodes = null;
+        let gothamMusicTimer = null;
+
+        async function startGothamDarkMusic() {
+            stopGothamDarkMusic();
+            if (!musicEnabled || typeof Tone === 'undefined') return;
+            try {
+                await Tone.start();
+
+                const reverb = new Tone.Reverb({ decay: 3.2, wet: 0.35 }).toDestination();
+                const lpFilter = new Tone.Filter(480, 'lowpass').connect(reverb);
+
+                // Groźny, głęboki syntezator dęto-smyczkowy (brzmienie filmowe Gotham)
+                const brassSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: 'sawtooth' },
+                    envelope: { attack: 0.08, decay: 0.25, sustain: 0.65, release: 0.8 }
+                }).connect(lpFilter);
+                brassSynth.volume.value = -4;
+
+                // Ostinato szybkich smyczków w tle
+                const stringSynth = new Tone.Synth({
+                    oscillator: { type: 'sawtooth' },
+                    envelope: { attack: 0.01, decay: 0.12, sustain: 0.1, release: 0.12 }
+                }).connect(lpFilter);
+                stringSynth.volume.value = -9;
+
+                // Mroczne kotły / uderzenia basowe
+                const timpani = new Tone.MembraneSynth({
+                    pitchDecay: 0.06,
+                    octaves: 5,
+                    envelope: { attack: 0.005, decay: 0.45, sustain: 0, release: 0.4 }
+                }).toDestination();
+                timpani.volume.value = -3;
+
+                gothamMusicNodes = { brassSynth, stringSynth, timpani, lpFilter, reverb };
+
+                // Sekwencja nut w groźnej tonacji c-moll / tryton (C - Eb - Gb - G)
+                const ostinatoNotes = ['C2', 'C2', 'Eb2', 'C2', 'Gb2', 'F2', 'Eb2', 'D2'];
+                const brassChords = [
+                    { step: 0, notes: ['C2', 'C3', 'G3'], dur: '2n' },
+                    { step: 4, notes: ['Eb2', 'Eb3', 'Bb3'], dur: '4n' },
+                    { step: 6, notes: ['Gb2', 'Gb3', 'Db4'], dur: '4n' },
+                    { step: 8, notes: ['G2', 'G3', 'D4'], dur: '2n.' },
+                    { step: 14, notes: ['Ab2', 'Eb3', 'Ab3'], dur: '4n' }
+                ];
+
+                let step = 0;
+                gothamMusicTimer = setInterval(() => {
+                    if (!gameActive || !musicEnabled) return;
+                    const now = Tone.now();
+                    const s16 = step % 16;
+
+                    // Pulsujące niskie smyczki co 250ms
+                    stringSynth.triggerAttackRelease(ostinatoNotes[step % ostinatoNotes.length], '16n', now);
+
+                    // Uderzenia kotłów budujące grozę
+                    if (s16 === 0 || s16 === 6 || s16 === 8 || s16 === 12 || s16 === 14) {
+                        timpani.triggerAttackRelease(s16 === 6 ? 'G1' : 'C1', '8n', now);
+                    }
+
+                    // Potężne akordy dętych blaszanych
+                    const chord = brassChords.find(c => c.step === s16);
+                    if (chord) {
+                        brassSynth.triggerAttackRelease(chord.notes, chord.dur, now);
+                    }
+
+                    step++;
+                }, 250);
+            } catch (e) {
+                console.warn('Audio init error:', e);
             }
         }
 
-        // Groźna, oryginalna muzyka symfoniczna w klimacie mrocznego Gotham (bez praw autorskich)
-        function startGothamMusic() {
-            stopGothamMusic();
-            if (!musicEnabled) return;
-            ensureAudio();
-            bgmStep = 0;
-
-            // Mroczny motyw w c-moll: ostinato niskich smyczków + groźne rogi / kotły
-            const bassPattern = [65.41, 65.41, 77.78, 65.41, 98.00, 92.50, 77.78, 58.27]; // C2, Eb2, G2, Gb2, Eb2, Bb1
-            const brassPattern = [130.81, 0, 155.56, 0, 196.00, 185.00, 155.56, 130.81];
-
-            bgmInterval = setInterval(() => {
-                if (!gameActive || !musicEnabled || !audioCtx) return;
-                const t = audioCtx.currentTime;
-                const idx = bgmStep % bassPattern.length;
-
-                // 1. Niskie, mroczne smyczki (ostinato)
-                const bassOsc = audioCtx.createOscillator();
-                const bassFilter = audioCtx.createBiquadFilter();
-                const bassGain = audioCtx.createGain();
-                bassOsc.type = 'sawtooth';
-                bassOsc.frequency.setValueAtTime(bassPattern[idx], t);
-                bassFilter.type = 'lowpass';
-                bassFilter.frequency.setValueAtTime(240, t);
-                bassGain.gain.setValueAtTime(0.09, t);
-                bassGain.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
-                bassOsc.connect(bassFilter);
-                bassFilter.connect(bassGain);
-                bassGain.connect(audioCtx.destination);
-                bassOsc.start(t);
-                bassOsc.stop(t + 0.35);
-
-                // 2. Groźne uderzenie kotłów co 2 kroki
-                if (idx % 2 === 0) {
-                    const drumOsc = audioCtx.createOscillator();
-                    const drumGain = audioCtx.createGain();
-                    drumOsc.type = 'sine';
-                    drumOsc.frequency.setValueAtTime(95, t);
-                    drumOsc.frequency.exponentialRampToValueAtTime(34, t + 0.22);
-                    drumGain.gain.setValueAtTime(0.16, t);
-                    drumGain.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
-                    drumOsc.connect(drumGain);
-                    drumGain.connect(audioCtx.destination);
-                    drumOsc.start(t);
-                    drumOsc.stop(t + 0.25);
-                }
-
-                // 3. Mroczne dęte blaszane (temat grozy w Gotham)
-                const brassNote = brassPattern[idx];
-                if (brassNote > 0 && (bgmStep % 16 < 8 || (gState && gState.phase === 'boss'))) {
-                    const hornOsc = audioCtx.createOscillator();
-                    const hornFilter = audioCtx.createBiquadFilter();
-                    const hornGain = audioCtx.createGain();
-                    hornOsc.type = 'sawtooth';
-                    hornOsc.frequency.setValueAtTime(brassNote, t);
-                    hornFilter.type = 'lowpass';
-                    hornFilter.frequency.setValueAtTime(520, t);
-                    hornGain.gain.setValueAtTime(0.001, t);
-                    hornGain.gain.linearRampToValueAtTime(0.055, t + 0.06);
-                    hornGain.gain.exponentialRampToValueAtTime(0.001, t + 0.36);
-                    hornOsc.connect(hornFilter);
-                    hornFilter.connect(hornGain);
-                    hornGain.connect(audioCtx.destination);
-                    hornOsc.start(t);
-                    hornOsc.stop(t + 0.38);
-                }
-
-                bgmStep++;
-            }, 340);
-        }
-
-        function stopGothamMusic() {
-            if (bgmInterval) {
-                clearInterval(bgmInterval);
-                bgmInterval = null;
+        function stopGothamDarkMusic() {
+            if (gothamMusicTimer) {
+                clearInterval(gothamMusicTimer);
+                gothamMusicTimer = null;
+            }
+            if (gothamMusicNodes) {
+                try {
+                    gothamMusicNodes.brassSynth.dispose();
+                    gothamMusicNodes.stringSynth.dispose();
+                    gothamMusicNodes.timpani.dispose();
+                    gothamMusicNodes.lpFilter.dispose();
+                    gothamMusicNodes.reverb.dispose();
+                } catch (e) {}
+                gothamMusicNodes = null;
             }
         }
 
@@ -1086,71 +1087,39 @@
             musicEnabled = !musicEnabled;
             toggleMusicBtn.textContent = musicEnabled ? '🔊 MUZYKA: WŁ.' : '🔇 MUZYKA: WYŁ.';
             if (musicEnabled && gameActive) {
-                startGothamMusic();
+                startGothamDarkMusic();
             } else {
-                stopGothamMusic();
+                stopGothamDarkMusic();
             }
         });
 
         function playSfx(type) {
             try {
-                ensureAudio();
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                const t = audioCtx.currentTime;
-
+                if (typeof Tone === 'undefined') return;
+                Tone.start();
+                const sfx = new Tone.Synth({
+                    oscillator: { type: type === 'sneeze' ? 'sawtooth' : 'triangle' },
+                    envelope: { attack: 0.005, decay: 0.14, sustain: 0.05, release: 0.12 }
+                }).toDestination();
+                sfx.volume.value = -6;
+                const now = Tone.now();
                 if (type === 'jump') {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(240, t);
-                    osc.frequency.exponentialRampToValueAtTime(560, t + 0.14);
-                    gain.gain.setValueAtTime(0.14, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-                    osc.start(t);
-                    osc.stop(t + 0.15);
+                    sfx.triggerAttackRelease('C4', '16n', now);
+                    sfx.triggerAttackRelease('G4', '16n', now + 0.06);
                 } else if (type === 'throw') {
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(780, t);
-                    osc.frequency.exponentialRampToValueAtTime(200, t + 0.11);
-                    gain.gain.setValueAtTime(0.13, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-                    osc.start(t);
-                    osc.stop(t + 0.12);
+                    sfx.triggerAttackRelease('E5', '32n', now);
+                    sfx.triggerAttackRelease('A3', '32n', now + 0.04);
                 } else if (type === 'hit') {
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(150, t);
-                    osc.frequency.exponentialRampToValueAtTime(55, t + 0.13);
-                    gain.gain.setValueAtTime(0.15, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
-                    osc.start(t);
-                    osc.stop(t + 0.14);
+                    sfx.triggerAttackRelease('G2', '16n', now);
                 } else if (type === 'sneeze') {
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(380, t);
-                    osc.frequency.exponentialRampToValueAtTime(90, t + 0.25);
-                    gain.gain.setValueAtTime(0.16, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
-                    osc.start(t);
-                    osc.stop(t + 0.26);
+                    sfx.triggerAttackRelease('F3', '8n', now);
+                    sfx.triggerAttackRelease('B1', '8n', now + 0.08);
                 } else if (type === 'heal' || type === 'bun') {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(440, t);
-                    osc.frequency.setValueAtTime(660, t + 0.08);
-                    osc.frequency.setValueAtTime(880, t + 0.16);
-                    gain.gain.setValueAtTime(0.16, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
-                    osc.start(t);
-                    osc.stop(t + 0.28);
-                } else if (type === 'taunt') {
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(140, t);
-                    osc.frequency.exponentialRampToValueAtTime(95, t + 0.35);
-                    gain.gain.setValueAtTime(0.14, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.36);
-                    osc.start(t);
-                    osc.stop(t + 0.36);
+                    sfx.triggerAttackRelease('C5', '16n', now);
+                    sfx.triggerAttackRelease('E5', '16n', now + 0.07);
+                    sfx.triggerAttackRelease('G5', '8n', now + 0.14);
                 }
+                setTimeout(() => sfx.dispose(), 500);
             } catch (e) {}
         }
 
@@ -1168,12 +1137,11 @@
             const h = gameCanvas.height;
             const groundY = h - Math.max(92, h * 0.15);
 
-            // Wieżowce Gotham w komiksowej stylistyce
             const buildings = [];
             let bx = -20;
             while (bx < w + 260) {
                 const bw = 62 + Math.random() * 68;
-                const bh = 130 + Math.random() * (h * 0.44);
+                const bh = 135 + Math.random() * (h * 0.44);
                 const wins = [];
                 for (let wy = 20; wy < bh - 28; wy += 24) {
                     for (let wx = 12; wx < bw - 16; wx += 18) {
@@ -1196,7 +1164,7 @@
                 speed: Math.max(5.8, w * 0.0085),
                 buildings,
                 batman: {
-                    x: Math.max(66, w * 0.18),
+                    x: Math.max(75, w * 0.2),
                     y: groundY,
                     vy: 0,
                     jumps: 0,
@@ -1205,19 +1173,19 @@
                     invuln: 0,
                     runFrame: 0,
                     speech: "O nie, Rafał Brzózka! 🤧",
-                    speechTimer: 100,
+                    speechTimer: 105,
                     eatingBun: false
                 },
                 brzozkaIntro: {
-                    x: w * 0.72,
+                    x: w * 0.74,
                     y: groundY,
                     vx: 0,
                     speech: "DOGOŃ MNIE! 🌳💨"
                 },
                 boss: {
                     active: false,
-                    x: w + 150,
-                    targetX: w - Math.max(125, w * 0.23),
+                    x: w + 180,
+                    targetX: w - Math.max(135, w * 0.24),
                     y: groundY,
                     hp: 100,
                     maxHp: 100,
@@ -1239,19 +1207,15 @@
                     bunCollected: false,
                     cutsceneTimer: 0
                 },
-                obstacles: [], // wściekłe małe brzozo-stworki z nogami i gałęziami jak na obrazku
-                flyingBirches: [], // latające brzozo-osy wokół bossa
-                pollens: [],   // żółte kwiatki pyłkowe jak na grafice
-                pills: [],     // biało-czerwone kapsułki Zyrtec jak na grafice
+                obstacles: [],
+                pollens: [],
+                pills: [],
                 batarangs: [],
-                particles: [],
                 spawnTimer: 50,
                 quoteCooldown: 140,
                 quoteIdx: 0,
                 shake: 0
             };
-
-            playSfx('taunt');
         }
 
         function jumpBatman() {
@@ -1259,7 +1223,7 @@
             if (gState.phase !== 'chase' && gState.phase !== 'boss') return;
             const b = gState.batman;
             if (b.jumps < b.maxJumps) {
-                b.vy = -Math.max(13.8, gameCanvas.height * 0.0225);
+                b.vy = -Math.max(14, gameCanvas.height * 0.023);
                 b.jumps++;
                 playSfx('jump');
             }
@@ -1271,9 +1235,9 @@
             if (gState.batarangs.length >= 4) return;
             const b = gState.batman;
             gState.batarangs.push({
-                x: b.x + 28,
-                y: b.y - 46,
-                vx: Math.max(11.5, gameCanvas.width * 0.0185),
+                x: b.x + 34,
+                y: b.y - 54,
+                vx: Math.max(12, gameCanvas.width * 0.019),
                 rot: 0
             });
             playSfx('throw');
@@ -1304,50 +1268,50 @@
             }
         });
 
-        // Komiksowy Batman z grubym konturem (jak na grafice referencyjnej)
+        // Duży, komiksowy Batman z rozpostartą peleryną (jak na grafice referencyjnej)
         function drawComicBatman(x, y, runFrame, isJumping, invuln, eatingBun) {
             if (invuln > 0 && Math.floor(invuln / 4) % 2 === 0) return;
             gCtx.save();
             gCtx.translate(x, y);
+            gCtx.scale(1.22, 1.22);
 
-            // Dynamiczna powiewająca peleryna
-            const wave = Math.sin(runFrame * 0.35) * 9;
-            gCtx.fillStyle = '#111827';
+            // Szeroka, poszarpana peleryna Batmana
+            const wave = Math.sin(runFrame * 0.35) * 10;
+            gCtx.fillStyle = '#0f172a';
             gCtx.strokeStyle = '#000000';
-            gCtx.lineWidth = 2.5;
+            gCtx.lineWidth = 2.6;
             gCtx.beginPath();
-            gCtx.moveTo(-6, -58);
-            gCtx.quadraticCurveTo(-28, -42, -44, -18 + wave);
-            gCtx.lineTo(-28, -14 - wave * 0.4);
-            gCtx.lineTo(-18, -8 + wave * 0.5);
-            gCtx.lineTo(-4, -16);
+            gCtx.moveTo(-8, -62);
+            gCtx.quadraticCurveTo(-36, -48, -56, -16 + wave);
+            gCtx.lineTo(-40, -12 - wave * 0.4);
+            gCtx.lineTo(-28, -5 + wave * 0.5);
+            gCtx.lineTo(-14, -12);
+            gCtx.lineTo(-4, -18);
             gCtx.closePath();
             gCtx.fill();
             gCtx.stroke();
 
             // Nogi w komiksowym stylu
-            const legSwing = isJumping ? 0.55 : Math.sin(runFrame * 0.35) * 0.65;
-            gCtx.lineWidth = 2.2;
+            const legSwing = isJumping ? 0.6 : Math.sin(runFrame * 0.35) * 0.65;
+            gCtx.lineWidth = 2.4;
             gCtx.strokeStyle = '#000000';
 
-            // Tylna noga
             gCtx.save();
-            gCtx.translate(-4, -24);
+            gCtx.translate(-5, -26);
             gCtx.rotate(legSwing);
             gCtx.fillStyle = '#334155';
             gCtx.beginPath();
-            gCtx.roundRect(-5, 0, 10, 22, 4);
+            gCtx.roundRect(-6, 0, 12, 25, 5);
             gCtx.fill();
             gCtx.stroke();
             gCtx.restore();
 
-            // Przednia noga
             gCtx.save();
-            gCtx.translate(5, -24);
+            gCtx.translate(6, -26);
             gCtx.rotate(-legSwing);
             gCtx.fillStyle = '#475569';
             gCtx.beginPath();
-            gCtx.roundRect(-5, 0, 10, 22, 4);
+            gCtx.roundRect(-6, 0, 12, 25, 5);
             gCtx.fill();
             gCtx.stroke();
             gCtx.restore();
@@ -1355,74 +1319,88 @@
             // Umięśniony szary pancerz Batmana
             gCtx.fillStyle = '#475569';
             gCtx.beginPath();
-            gCtx.roundRect(-15, -60, 30, 37, 7);
+            gCtx.roundRect(-17, -64, 34, 40, 8);
             gCtx.fill();
             gCtx.stroke();
 
             // Czarny symbol nietoperza na klatce
             gCtx.fillStyle = '#090d16';
             gCtx.beginPath();
-            gCtx.ellipse(2, -46, 9, 4, 0, 0, Math.PI * 2);
+            gCtx.ellipse(2, -49, 10, 4.5, 0, 0, Math.PI * 2);
             gCtx.fill();
 
             // Złoty pas taktyczny z klamrami
             gCtx.fillStyle = '#eab308';
-            gCtx.fillRect(-15, -29, 30, 6);
-            gCtx.strokeRect(-15, -29, 30, 6);
+            gCtx.fillRect(-17, -31, 34, 6.5);
+            gCtx.strokeRect(-17, -31, 34, 6.5);
             gCtx.fillStyle = '#ca8a04';
-            gCtx.fillRect(-3, -30, 7, 8);
+            gCtx.fillRect(-3.5, -32, 8, 8.5);
 
-            // Kaptur Batmana z ostrymi uszami
+            // Tylna ręka uniesiona z batarangiem (jak na obrazku!)
+            if (!eatingBun) {
+                gCtx.fillStyle = '#334155';
+                gCtx.beginPath();
+                gCtx.roundRect(-24, -76, 10, 22, 4);
+                gCtx.fill();
+                gCtx.stroke();
+                // Batarang w górnej dłoni
+                gCtx.fillStyle = '#1e293b';
+                gCtx.beginPath();
+                gCtx.ellipse(-20, -79, 11, 3.5, -0.4, 0, Math.PI * 2);
+                gCtx.fill();
+                gCtx.stroke();
+            }
+
+            // Kaptur Batmana z długimi uszami
             gCtx.fillStyle = '#1e293b';
             gCtx.beginPath();
-            gCtx.arc(0, -72, 14, 0, Math.PI * 2);
+            gCtx.arc(0, -76, 15, 0, Math.PI * 2);
             gCtx.fill();
             gCtx.stroke();
 
             gCtx.beginPath();
-            gCtx.moveTo(-10, -80);
-            gCtx.lineTo(-11, -98);
-            gCtx.lineTo(-3, -83);
-            gCtx.moveTo(9, -80);
-            gCtx.lineTo(11, -98);
-            gCtx.lineTo(4, -83);
+            gCtx.moveTo(-11, -85);
+            gCtx.lineTo(-12, -104);
+            gCtx.lineTo(-4, -88);
+            gCtx.moveTo(10, -85);
+            gCtx.lineTo(12, -104);
+            gCtx.lineTo(4, -88);
             gCtx.fill();
             gCtx.stroke();
 
             // Dolna część twarzy
             gCtx.fillStyle = '#f3c6a5';
             gCtx.beginPath();
-            gCtx.arc(2, -68, 9.5, 0.1 * Math.PI, 0.9 * Math.PI);
+            gCtx.arc(2, -72, 10, 0.1 * Math.PI, 0.9 * Math.PI);
             gCtx.fill();
             gCtx.stroke();
 
             // Groźne białe oczy
             gCtx.fillStyle = '#ffffff';
             gCtx.beginPath();
-            gCtx.moveTo(2, -74);
-            gCtx.lineTo(10, -76);
-            gCtx.lineTo(9, -71);
+            gCtx.moveTo(2, -78);
+            gCtx.lineTo(11, -80);
+            gCtx.lineTo(10, -75);
             gCtx.closePath();
             gCtx.fill();
 
-            // Ręka (rzucająca lub trzymająca bułkę)
+            // Przednia ręka (rzucająca lub jedząca bułkę)
             if (eatingBun) {
                 gCtx.fillStyle = '#334155';
                 gCtx.beginPath();
-                gCtx.roundRect(4, -64, 14, 8, 4);
+                gCtx.roundRect(5, -68, 15, 9, 4);
                 gCtx.fill();
                 gCtx.stroke();
 
-                // Złocista bułka
                 gCtx.fillStyle = '#f59e0b';
                 gCtx.beginPath();
-                gCtx.ellipse(23, -64, 11, 7.5, -0.2, 0, Math.PI * 2);
+                gCtx.ellipse(25, -68, 12, 8, -0.2, 0, Math.PI * 2);
                 gCtx.fill();
                 gCtx.stroke();
             } else {
                 gCtx.fillStyle = '#334155';
                 gCtx.beginPath();
-                gCtx.roundRect(4, -52, 18, 8, 4);
+                gCtx.roundRect(5, -56, 21, 9, 4);
                 gCtx.fill();
                 gCtx.stroke();
             }
@@ -1430,103 +1408,129 @@
             gCtx.restore();
         }
 
-        // Komiksowy Rafał Brzózka jak na grafice referencyjnej (skala 1.15, pełna sylwetka po prawej)
+        // Duży, szczegółowy komiksowy Rafał Brzózka (wzorowany 1:1 na załączonym obrazku)
         function drawComicRafalBrzozka(x, y, bob, hitFlash) {
             gCtx.save();
             gCtx.translate(x, y + Math.sin(bob) * 5);
-            gCtx.scale(1.12, 1.12);
+            // Duża skala komiksowego bossa po prawej stronie ekranu
+            const scale = Math.min(1.48, Math.max(1.18, gameCanvas.height / 540));
+            gCtx.scale(scale, scale);
 
             if (hitFlash > 0) {
-                gCtx.filter = 'brightness(1.75)';
+                gCtx.filter = 'brightness(1.85)';
             }
 
-            gCtx.lineWidth = 2.6;
+            gCtx.lineWidth = 2.8;
             gCtx.strokeStyle = '#090d16';
 
-            // Brzozowe nogi / pień na dole
+            // 1. Brzozowe nogi / pień na dole
             gCtx.fillStyle = '#f1f5f9';
-            gCtx.fillRect(-20, -48, 40, 48);
-            gCtx.strokeRect(-20, -48, 40, 48);
-            // Czarne sęki i prążki brzozy
-            gCtx.fillStyle = '#1e293b';
-            gCtx.fillRect(-16, -38, 13, 3.5);
-            gCtx.fillRect(2, -26, 15, 3.5);
-            gCtx.fillRect(-13, -14, 12, 3.5);
-
-            // Niebieska marynarka garniturowa z klapami
-            gCtx.fillStyle = '#1d4ed8';
-            gCtx.beginPath();
-            gCtx.roundRect(-42, -124, 84, 80, 14);
-            gCtx.fill();
-            gCtx.stroke();
-
-            // Ciemna rozpięta koszula
+            gCtx.fillRect(-22, -46, 44, 46);
+            gCtx.strokeRect(-22, -46, 44, 46);
             gCtx.fillStyle = '#0f172a';
-            gCtx.beginPath();
-            gCtx.moveTo(-15, -124);
-            gCtx.lineTo(15, -124);
-            gCtx.lineTo(0, -68);
-            gCtx.closePath();
-            gCtx.fill();
-            gCtx.stroke();
+            gCtx.fillRect(-17, -36, 14, 3.5);
+            gCtx.fillRect(3, -24, 16, 3.5);
+            gCtx.fillRect(-14, -12, 13, 3.5);
 
-            // Czerwona poszetka w brustaszy
-            gCtx.fillStyle = '#dc2626';
-            gCtx.beginPath();
-            gCtx.moveTo(16, -104);
-            gCtx.lineTo(29, -104);
-            gCtx.lineTo(23, -113);
-            gCtx.closePath();
-            gCtx.fill();
-            gCtx.stroke();
-
-            // Rozłożone ręce w niebieskich rękawach + brzozowe dłonie i złoty zegarek
-            // Lewa ręka
+            // 2. Niebieska marynarka garniturowa z klapami i guzikami
             gCtx.fillStyle = '#2563eb';
             gCtx.beginPath();
-            gCtx.roundRect(-58, -112, 20, 44, 9);
+            gCtx.roundRect(-48, -132, 96, 88, 16);
             gCtx.fill();
             gCtx.stroke();
-            gCtx.fillStyle = '#f1f5f9';
+
+            // Ciemna rozpięta koszula w środku
+            gCtx.fillStyle = '#0f172a';
             gCtx.beginPath();
-            gCtx.arc(-52, -66, 11, 0, Math.PI * 2);
+            gCtx.moveTo(-17, -132);
+            gCtx.lineTo(17, -132);
+            gCtx.lineTo(0, -64);
+            gCtx.closePath();
             gCtx.fill();
             gCtx.stroke();
+
+            // Klapy marynarki
+            gCtx.fillStyle = '#1d4ed8';
+            gCtx.beginPath();
+            gCtx.moveTo(-17, -132);
+            gCtx.lineTo(-28, -96);
+            gCtx.lineTo(-7, -86);
+            gCtx.closePath();
+            gCtx.fill();
+            gCtx.stroke();
+
+            gCtx.beginPath();
+            gCtx.moveTo(17, -132);
+            gCtx.lineTo(28, -96);
+            gCtx.lineTo(7, -86);
+            gCtx.closePath();
+            gCtx.fill();
+            gCtx.stroke();
+
+            // Czerwona poszetka w brustaszy (po prawej stronie klatki jak na obrazku)
+            gCtx.fillStyle = '#dc2626';
+            gCtx.beginPath();
+            gCtx.moveTo(18, -108);
+            gCtx.lineTo(33, -108);
+            gCtx.lineTo(26, -118);
+            gCtx.closePath();
+            gCtx.fill();
+            gCtx.stroke();
+
+            // 3. Rozłożone ręce w niebieskich rękawach + brzozowe dłonie z palcami i złoty zegarek
+            // Lewa ręka wyciągnięta do przodu
+            gCtx.fillStyle = '#2563eb';
+            gCtx.beginPath();
+            gCtx.roundRect(-68, -116, 24, 48, 10);
+            gCtx.fill();
+            gCtx.stroke();
+            // Brzozowa dłoń lewa z rozłożonymi palcami
+            gCtx.fillStyle = '#f8fafc';
+            gCtx.beginPath();
+            gCtx.arc(-62, -66, 13, 0, Math.PI * 2);
+            gCtx.fill();
+            gCtx.stroke();
+            // Prążki kory na dłoni
+            gCtx.fillStyle = '#0f172a';
+            gCtx.fillRect(-68, -69, 8, 2.5);
+            gCtx.fillRect(-64, -62, 9, 2.5);
 
             // Prawa ręka ze złotym zegarkiem
             gCtx.fillStyle = '#2563eb';
             gCtx.beginPath();
-            gCtx.roundRect(38, -112, 20, 44, 9);
+            gCtx.roundRect(44, -116, 24, 48, 10);
             gCtx.fill();
             gCtx.stroke();
-            // Złoty zegarek
+            // Złoty zegarek na nadgarstku
             gCtx.fillStyle = '#fbbf24';
-            gCtx.fillRect(39, -76, 18, 6);
-            gCtx.strokeRect(39, -76, 18, 6);
-            // Brzozowa dłoń
-            gCtx.fillStyle = '#f1f5f9';
+            gCtx.fillRect(45, -76, 22, 8);
+            gCtx.strokeRect(45, -76, 22, 8);
+            // Brzozowa dłoń prawa
+            gCtx.fillStyle = '#f8fafc';
             gCtx.beginPath();
-            gCtx.arc(50, -64, 11, 0, Math.PI * 2);
+            gCtx.arc(58, -62, 13, 0, Math.PI * 2);
             gCtx.fill();
             gCtx.stroke();
-
-            // Brzozowa szyja w czarnych cętkach
-            gCtx.fillStyle = '#f1f5f9';
-            gCtx.fillRect(-13, -140, 26, 18);
-            gCtx.strokeRect(-13, -140, 26, 18);
             gCtx.fillStyle = '#0f172a';
-            gCtx.fillRect(-10, -135, 11, 3);
-            gCtx.fillRect(1, -129, 10, 3);
+            gCtx.fillRect(52, -65, 9, 2.5);
 
-            // Grube pnie i gałęzie brzozy wyrastające z czubka głowy
+            // 4. Brzozowa szyja w czarnych cętkach
+            gCtx.fillStyle = '#f8fafc';
+            gCtx.fillRect(-15, -148, 30, 18);
+            gCtx.strokeRect(-15, -148, 30, 18);
+            gCtx.fillStyle = '#0f172a';
+            gCtx.fillRect(-11, -143, 12, 3);
+            gCtx.fillRect(2, -137, 11, 3);
+
+            // 5. Grube sękate pnie i gałęzie brzozy wyrastające bezpośrednio z łysiny
             const trunks = [
-                { x1: -15, y1: -176, x2: -46, y2: -214, w: 11 },
-                { x1: 0,   y1: -180, x2: -5,  y2: -222, w: 12 },
-                { x1: 15,  y1: -176, x2: 46,  y2: -212, w: 11 }
+                { x1: -17, y1: -188, x2: -54, y2: -228, w: 13 },
+                { x1: -2,  y1: -192, x2: -10, y2: -234, w: 12 },
+                { x1: 16,  y1: -188, x2: 52,  y2: -226, w: 13 }
             ];
             trunks.forEach(tr => {
                 gCtx.strokeStyle = '#090d16';
-                gCtx.lineWidth = tr.w + 4;
+                gCtx.lineWidth = tr.w + 5;
                 gCtx.lineCap = 'round';
                 gCtx.beginPath();
                 gCtx.moveTo(tr.x1, tr.y1);
@@ -1542,76 +1546,107 @@
 
                 // Cętki brzozy na pniach
                 gCtx.fillStyle = '#090d16';
-                gCtx.fillRect((tr.x1 + tr.x2) / 2 - 4, (tr.y1 + tr.y2) / 2, 8, 3);
+                gCtx.fillRect((tr.x1 + tr.x2) / 2 - 5, (tr.y1 + tr.y2) / 2, 10, 3.5);
             });
 
-            // Zielone listki brzozy z konturem
-            gCtx.lineWidth = 2;
+            // Zielone listki brzozy z wyraźnym komiksowym obrysem
+            gCtx.lineWidth = 2.2;
             gCtx.strokeStyle = '#090d16';
             const leaves = [
-                [-50, -216], [-34, -204], [-18, -220], [4, -224], [26, -212], [50, -210], [34, -198]
+                [-58, -230], [-40, -216], [-24, -232], [-4, -238], [22, -226], [56, -224], [38, -210], [-48, -202]
             ];
             leaves.forEach(([lx, ly]) => {
                 gCtx.fillStyle = '#4ade80';
                 gCtx.beginPath();
-                gCtx.ellipse(lx, ly, 10, 5.5, 0.35, 0, Math.PI * 2);
+                gCtx.ellipse(lx, ly, 11, 6, 0.35, 0, Math.PI * 2);
                 gCtx.fill();
                 gCtx.stroke();
             });
 
-            // Głowa Rafała Brzózki (łysina + wyraźne rysy twarzy)
-            gCtx.lineWidth = 2.6;
+            // 6. Charakterystyczna głowa Rafała Brzózki (wysokie czoło / łysina, brwi, okulary, broda)
+            gCtx.lineWidth = 2.8;
             gCtx.fillStyle = '#f1c29f';
             gCtx.beginPath();
-            gCtx.ellipse(0, -160, 25, 29, 0, 0, Math.PI * 2);
+            gCtx.ellipse(0, -170, 27, 32, 0, 0, Math.PI * 2);
             gCtx.fill();
             gCtx.stroke();
 
-            // Siwiejąca broda i wąsy
+            // Zmarszczki na czole jak w komiksie
+            gCtx.strokeStyle = '#b48362';
+            gCtx.lineWidth = 1.6;
+            gCtx.beginPath();
+            gCtx.moveTo(-11, -188);
+            gCtx.lineTo(11, -188);
+            gCtx.moveTo(-8, -183);
+            gCtx.lineTo(8, -183);
+            gCtx.stroke();
+
+            // Siwiejąca broda i wąsy wokół ust
+            gCtx.strokeStyle = '#090d16';
+            gCtx.lineWidth = 2.5;
             gCtx.fillStyle = '#64748b';
             gCtx.beginPath();
-            gCtx.arc(0, -153, 21, 0.08 * Math.PI, 0.92 * Math.PI);
+            gCtx.arc(0, -162, 23, 0.08 * Math.PI, 0.92 * Math.PI);
             gCtx.fill();
             gCtx.stroke();
 
             // Usta w brodzie
             gCtx.fillStyle = '#d99f77';
             gCtx.beginPath();
-            gCtx.ellipse(0, -147, 9, 4, 0, 0, Math.PI * 2);
+            gCtx.ellipse(0, -155, 10, 4.5, 0, 0, Math.PI * 2);
             gCtx.fill();
             gCtx.strokeStyle = '#451a03';
             gCtx.lineWidth = 2;
             gCtx.beginPath();
-            gCtx.moveTo(-6, -147);
-            gCtx.lineTo(6, -147);
+            gCtx.moveTo(-7, -155);
+            gCtx.lineTo(7, -155);
             gCtx.stroke();
 
-            // Brwi zmarszczone groźnie
-            gCtx.strokeStyle = '#090d16';
-            gCtx.lineWidth = 2.8;
+            // Nos
+            gCtx.strokeStyle = '#854d27';
+            gCtx.lineWidth = 2.2;
             gCtx.beginPath();
-            gCtx.moveTo(-18, -172);
-            gCtx.lineTo(-5, -168);
-            gCtx.moveTo(18, -172);
-            gCtx.lineTo(5, -168);
+            gCtx.moveTo(0, -173);
+            gCtx.lineTo(-3, -163);
+            gCtx.lineTo(3, -163);
             gCtx.stroke();
+
+            // Groźnie zmarszczone brwi
+            gCtx.strokeStyle = '#090d16';
+            gCtx.lineWidth = 3;
+            gCtx.beginPath();
+            gCtx.moveTo(-20, -181);
+            gCtx.lineTo(-5, -177);
+            gCtx.moveTo(20, -181);
+            gCtx.lineTo(5, -177);
+            gCtx.stroke();
+
+            // Oczy za okularami
+            gCtx.fillStyle = '#ffffff';
+            gCtx.fillRect(-16, -175, 10, 6);
+            gCtx.fillRect(6, -175, 10, 6);
+            gCtx.fillStyle = '#090d16';
+            gCtx.beginPath();
+            gCtx.arc(-11, -172, 2.5, 0, Math.PI * 2);
+            gCtx.arc(11, -172, 2.5, 0, Math.PI * 2);
+            gCtx.fill();
 
             // Ciemne prostokątne okulary ze złotym mostkiem
-            gCtx.fillStyle = 'rgba(255,255,255,0.25)';
-            gCtx.fillRect(-19, -167, 15, 10);
-            gCtx.strokeRect(-19, -167, 15, 10);
-            gCtx.fillRect(4, -167, 15, 10);
-            gCtx.strokeRect(4, -167, 15, 10);
+            gCtx.strokeStyle = '#090d16';
+            gCtx.lineWidth = 2.8;
+            gCtx.strokeRect(-21, -177, 17, 11);
+            gCtx.strokeRect(4, -177, 17, 11);
             gCtx.strokeStyle = '#fbbf24';
+            gCtx.lineWidth = 3;
             gCtx.beginPath();
-            gCtx.moveTo(-4, -163);
-            gCtx.lineTo(4, -163);
+            gCtx.moveTo(-4, -173);
+            gCtx.lineTo(4, -173);
             gCtx.stroke();
 
             gCtx.restore();
         }
 
-        // Mały wściekły brzozo-stworzek (jak na grafice na dole ulicy i w powietrzu)
+        // Mały wściekły brzozo-stworzek (na ulicy i latający ze skrzydełkami)
         function drawBirchGremlin(x, y, hasWings, timer) {
             gCtx.save();
             gCtx.translate(x, y);
@@ -1627,7 +1662,6 @@
                 gCtx.fill();
                 gCtx.stroke();
             } else {
-                // Nóżki biegnące
                 const step = Math.sin(timer * 0.35) * 4;
                 gCtx.fillStyle = '#f8fafc';
                 gCtx.fillRect(-10, -14 + step, 6, 14);
@@ -1636,14 +1670,12 @@
                 gCtx.strokeRect(4, -14 - step, 6, 14);
             }
 
-            // Brzozowy korpus
             gCtx.fillStyle = '#f8fafc';
             gCtx.beginPath();
             gCtx.roundRect(-14, -44, 28, 32, 7);
             gCtx.fill();
             gCtx.stroke();
 
-            // Gałązki na głowie
             gCtx.beginPath();
             gCtx.moveTo(-7, -44);
             gCtx.lineTo(-14, -56);
@@ -1656,7 +1688,6 @@
             gCtx.arc(15, -57, 4, 0, Math.PI * 2);
             gCtx.fill();
 
-            // Wściekłe żółte oczy i paszcza
             gCtx.fillStyle = '#facc15';
             gCtx.fillRect(-9, -35, 6, 5);
             gCtx.fillRect(3, -35, 6, 5);
@@ -1674,7 +1705,7 @@
             const bw = Math.min(gameCanvas.width - 24, textWidth + padding * 2);
             const bh = 30;
             const bx = Math.max(12, Math.min(gameCanvas.width - bw - 12, x - bw / 2));
-            const by = Math.max(66, y - bh);
+            const by = Math.max(68, y - bh);
 
             gCtx.fillStyle = bgColor;
             gCtx.beginPath();
@@ -1718,7 +1749,6 @@
             gCtx.fillRect(-27, -43, 54, 8);
             gCtx.strokeRect(-27, -43, 54, 8);
 
-            // Sadzonka brzozy
             gCtx.fillStyle = '#f8fafc';
             gCtx.fillRect(-3, -68, 6, 25);
             gCtx.strokeRect(-3, -68, 6, 25);
@@ -1748,20 +1778,16 @@
             }
         }
 
-        // Komiksowy HUD wzorowany na załączonej grafice
         function drawComicHUD(w, h, b, boss) {
             gCtx.save();
             gCtx.lineWidth = 2.5;
             gCtx.strokeStyle = '#090d16';
 
-            // 1. Lewy górny róg: Portret Batmana + pasek KICHANIE / ALERGIA + kapsułka + PUNKTY
             const boxX = 12;
             const boxY = 12;
-            // Ramka portretu
             gCtx.fillStyle = '#1e293b';
             gCtx.fillRect(boxX, boxY, 46, 52);
             gCtx.strokeRect(boxX, boxY, 46, 52);
-            // Mini głowa Batmana w ramce
             gCtx.fillStyle = '#0f172a';
             gCtx.beginPath();
             gCtx.arc(boxX + 23, boxY + 29, 13, 0, Math.PI * 2);
@@ -1780,7 +1806,6 @@
             gCtx.fillRect(boxX + 16, boxY + 25, 5, 3);
             gCtx.fillRect(boxX + 25, boxY + 25, 5, 3);
 
-            // Etykieta KICHANIE / ALERGIA
             const barLeft = boxX + 52;
             const barWidth = Math.min(155, w * 0.34);
             gCtx.fillStyle = '#ffffff';
@@ -1788,19 +1813,16 @@
             gCtx.textAlign = 'left';
             gCtx.fillText('KICHANIE / ALERGIA', barLeft, boxY + 11);
 
-            // Czerwono-szary pasek alergii
             gCtx.fillStyle = '#334155';
             gCtx.fillRect(barLeft, boxY + 16, barWidth, 16);
             gCtx.strokeRect(barLeft, boxY + 16, barWidth, 16);
             gCtx.fillStyle = '#dc2626';
             gCtx.fillRect(barLeft + 2, boxY + 18, Math.max(0, (barWidth - 4) * (b.allergy / 100)), 12);
 
-            // PUNKTY pod paskiem
             gCtx.fillStyle = '#ffffff';
             gCtx.font = '900 12px Inter, sans-serif';
             gCtx.fillText(`PUNKTY: ${gState.score}`, barLeft, boxY + 47);
 
-            // Ikona biało-czerwonej kapsułki obok paska
             const pillX = barLeft + barWidth + 8;
             if (pillX + 32 < w * 0.56) {
                 gCtx.fillStyle = '#1e293b';
@@ -1818,7 +1840,6 @@
                 gCtx.restore();
             }
 
-            // 2. Prawy górny róg: Pasek zdrowia RAFAŁ BRZÓZKA (w trakcie walki z bossem)
             if (gState.phase === 'boss' || gState.phase === 'victory_cutscene') {
                 const bossBarW = Math.min(185, w * 0.38);
                 const bossBarX = w - bossBarW - 14;
@@ -1841,9 +1862,7 @@
                 gCtx.fillText(`POŚCIG: ${distPct}%`, w - 16, boxY + 22);
             }
 
-            // 3. Dolne komiksowe ikony sterowania (lewo: skok, prawo: batarang)
             const btnY = h - 78;
-            // Przycisk SKOK (lewy dolny róg)
             gCtx.fillStyle = 'rgba(15, 23, 42, 0.72)';
             gCtx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
             gCtx.lineWidth = 2.5;
@@ -1863,7 +1882,6 @@
             gCtx.closePath();
             gCtx.fill();
 
-            // Przycisk BATARANG (prawy dolny róg)
             gCtx.beginPath();
             gCtx.roundRect(w - 72, btnY, 54, 54, 12);
             gCtx.fill();
@@ -1898,7 +1916,7 @@
                 if (gState.shake < 0.5) gState.shake = 0;
             }
 
-            // 1. Komiksowe niebo Gotham z księżycem i Bat-Sygnałem
+            // Komiksowe niebo Gotham z księżycem i Bat-Sygnałem
             const skyGrad = gCtx.createLinearGradient(0, 0, 0, groundY);
             skyGrad.addColorStop(0, '#0a1628');
             skyGrad.addColorStop(0.55, '#162c46');
@@ -1906,14 +1924,12 @@
             gCtx.fillStyle = skyGrad;
             gCtx.fillRect(0, 0, w, h);
 
-            // Księżyc i Bat-Sygnał (jak na grafice)
             const moonX = w * 0.32;
             const moonY = h * 0.24;
             gCtx.fillStyle = '#e0f2fe';
             gCtx.beginPath();
             gCtx.arc(moonX, moonY, 34, 0, Math.PI * 2);
             gCtx.fill();
-            // Sylwetka nietoperza w księżycu
             gCtx.fillStyle = '#0f172a';
             gCtx.beginPath();
             gCtx.moveTo(moonX - 20, moonY - 3);
@@ -1927,7 +1943,6 @@
             gCtx.closePath();
             gCtx.fill();
 
-            // Sylwetki wieżowców Gotham z oświetlonymi oknami
             const scrollSpeed = (gState.phase === 'chase') ? gState.speed * 0.45 : (gState.phase === 'boss' ? 0.9 : 0);
             gState.buildings.forEach(bld => {
                 bld.x -= scrollSpeed;
@@ -1945,7 +1960,6 @@
                 });
             });
 
-            // Ceglany murek i ulica Gotham
             gCtx.fillStyle = '#1e293b';
             gCtx.fillRect(0, groundY - 26, w, 26);
             gCtx.strokeStyle = '#090d16';
@@ -1961,7 +1975,6 @@
             gCtx.lineTo(w, groundY);
             gCtx.stroke();
 
-            // 2. Logika faz rozgrywki
             if (gState.phase === 'intro') {
                 const intro = gState.brzozkaIntro;
                 drawComicBatman(b.x, b.y, 0, false, 0, false);
@@ -1971,13 +1984,13 @@
                     intro.x += intro.vx;
                 }
                 drawComicRafalBrzozka(intro.x, groundY, gState.timer * 0.2, 0);
-                drawSpeechBubble(intro.x, groundY - 255, intro.speech, '#fef08a', '#0f172a');
+                drawSpeechBubble(intro.x, groundY - 285, intro.speech, '#fef08a', '#0f172a');
 
                 if (gState.timer <= 55) {
-                    drawSpeechBubble(b.x + 25, b.y - 112, "O nie, Rafał Brzózka! 🤧", '#ffffff', '#0f172a');
+                    drawSpeechBubble(b.x + 25, b.y - 128, "O nie, Rafał Brzózka! 🤧", '#ffffff', '#0f172a');
                 }
 
-                if (intro.x > w + 140) {
+                if (intro.x > w + 160) {
                     gState.phase = 'chase';
                     b.speech = "Za nim! Przeskakuj brzozy! 🦇";
                     b.speechTimer = 110;
@@ -2010,8 +2023,7 @@
                     if (gState.spawnTimer <= 0) {
                         gState.obstacles.push({
                             x: w + 40,
-                            y: groundY,
-                            hp: 1
+                            y: groundY
                         });
                         if (Math.random() > 0.56) {
                             gState.pills.push({
@@ -2028,11 +2040,9 @@
                         gState.obstacles = [];
                         b.speech = "Mam Cię, Brzózka! Koniec pylenia! 🦇";
                         b.speechTimer = 130;
-                        playSfx('taunt');
                     }
                 }
 
-                // Brzozo-stworki na ulicy
                 for (let i = gState.obstacles.length - 1; i >= 0; i--) {
                     const ob = gState.obstacles[i];
                     ob.x -= gState.speed;
@@ -2041,7 +2051,7 @@
 
                     if (
                         b.invuln === 0 &&
-                        Math.abs(b.x - ob.x) < 22 &&
+                        Math.abs(b.x - ob.x) < 24 &&
                         b.y > ob.y - 44
                     ) {
                         b.allergy = Math.min(100, b.allergy + 28);
@@ -2055,7 +2065,6 @@
                     if (ob.x < -50) gState.obstacles.splice(i, 1);
                 }
 
-                // Kapsułki Zyrtec
                 for (let i = gState.pills.length - 1; i >= 0; i--) {
                     const p = gState.pills[i];
                     p.x -= gState.speed;
@@ -2073,7 +2082,7 @@
                     gCtx.strokeRect(0, -6, 12, 12);
                     gCtx.restore();
 
-                    if (Math.hypot(b.x - p.x, (b.y - 45) - p.y) < 34) {
+                    if (Math.hypot(b.x - p.x, (b.y - 45) - p.y) < 36) {
                         b.allergy = Math.max(0, b.allergy - 35);
                         gState.score += 250;
                         b.speech = "Zyrtec wjechał! Oddycham pełną piersią! 💊";
@@ -2085,7 +2094,6 @@
                     if (p.x < -40) gState.pills.splice(i, 1);
                 }
 
-                // Finałowy Boss: Rafał Brzózka
                 if (gState.phase === 'boss') {
                     const boss = gState.boss;
                     boss.bob += 0.1;
@@ -2096,8 +2104,8 @@
                         boss.attackCooldown--;
                         if (boss.attackCooldown <= 0) {
                             gState.pollens.push({
-                                x: boss.x - 42,
-                                y: groundY - (Math.random() > 0.45 ? 38 : 102),
+                                x: boss.x - 50,
+                                y: groundY - (Math.random() > 0.45 ? 40 : 108),
                                 vx: -(gState.speed * 1.15)
                             });
                             boss.attackCooldown = boss.hp < 50 ? 58 : 82;
@@ -2105,16 +2113,14 @@
                     }
 
                     drawComicRafalBrzozka(boss.x, boss.y, boss.bob, boss.hitFlash);
-                    // Latający brzozo-stworek wokół bossa
-                    drawBirchGremlin(boss.x - 75, boss.y - 165 + Math.sin(boss.bob * 2) * 10, true, gState.timer);
+                    drawBirchGremlin(boss.x - 95, boss.y - 185 + Math.sin(boss.bob * 2) * 10, true, gState.timer);
 
                     if (boss.speechTimer > 0) {
                         boss.speechTimer--;
-                        drawSpeechBubble(boss.x - 15, boss.y - 255, boss.speech, '#fef08a', '#0f172a');
+                        drawSpeechBubble(boss.x - 15, boss.y - 285, boss.speech, '#fef08a', '#0f172a');
                     }
                 }
 
-                // Żółte kwiatki pyłkowe
                 for (let i = gState.pollens.length - 1; i >= 0; i--) {
                     const pol = gState.pollens[i];
                     pol.x += pol.vx;
@@ -2136,7 +2142,7 @@
 
                     if (
                         b.invuln === 0 &&
-                        Math.hypot(b.x - pol.x, (b.y - 42) - pol.y) < 28
+                        Math.hypot(b.x - pol.x, (b.y - 45) - pol.y) < 30
                     ) {
                         b.allergy = Math.min(100, b.allergy + 24);
                         b.invuln = 45;
@@ -2150,7 +2156,6 @@
                     if (pol.x < -30) gState.pollens.splice(i, 1);
                 }
 
-                // Komiksowe batarangi
                 for (let i = gState.batarangs.length - 1; i >= 0; i--) {
                     const bt = gState.batarangs[i];
                     bt.x += bt.vx;
@@ -2177,7 +2182,7 @@
                     let hit = false;
                     for (let j = gState.obstacles.length - 1; j >= 0; j--) {
                         const ob = gState.obstacles[j];
-                        if (Math.abs(bt.x - ob.x) < 24 && bt.y > ob.y - 52) {
+                        if (Math.abs(bt.x - ob.x) < 26 && bt.y > ob.y - 55) {
                             gState.obstacles.splice(j, 1);
                             gState.score += 150;
                             hit = true;
@@ -2188,7 +2193,7 @@
 
                     if (!hit && gState.phase === 'boss') {
                         const boss = gState.boss;
-                        if (Math.abs(bt.x - boss.x) < 46 && bt.y > boss.y - 190) {
+                        if (Math.abs(bt.x - boss.x) < 56 && bt.y > boss.y - 230) {
                             boss.hp = Math.max(0, boss.hp - 12);
                             boss.hitFlash = 8;
                             gState.score += 300;
@@ -2233,12 +2238,12 @@
                 drawComicBatman(b.x, b.y, b.runFrame, b.y < groundY, b.invuln, false);
                 if (b.speechTimer > 0) {
                     b.speechTimer--;
-                    drawSpeechBubble(b.x + 25, b.y - 112, b.speech, '#ffffff', '#0f172a');
+                    drawSpeechBubble(b.x + 25, b.y - 128, b.speech, '#ffffff', '#0f172a');
                 }
 
                 if (b.allergy >= 100) {
                     gState.phase = 'gameover';
-                    stopGothamMusic();
+                    stopGothamDarkMusic();
                     gameEndEmoji.textContent = '🤧🌳💊';
                     gameEndTitle.textContent = 'Atak alergii w Gotham!';
                     gameEndSpeech.textContent = '„Apsik! Za dużo pyłków brzozy! Weź Zyrtec i spróbuj jeszcze raz, Bartek!”';
@@ -2259,7 +2264,7 @@
                         pb.bunLanded = true;
                     }
                 } else if (!pb.bunCollected) {
-                    if (b.x < pb.bunX - 26) {
+                    if (b.x < pb.bunX - 30) {
                         b.x += 4.5;
                         b.runFrame++;
                     } else {
@@ -2274,12 +2279,12 @@
                 drawPotAndBun(pb);
                 drawComicBatman(b.x, groundY, b.runFrame, false, 0, b.eatingBun);
                 if (b.speechTimer > 0) {
-                    drawSpeechBubble(b.x + 20, groundY - 114, b.speech, '#fef08a', '#0f172a');
+                    drawSpeechBubble(b.x + 20, groundY - 130, b.speech, '#fef08a', '#0f172a');
                 }
 
                 if (pb.bunCollected && pb.cutsceneTimer > 155) {
                     gState.phase = 'finished';
-                    stopGothamMusic();
+                    stopGothamDarkMusic();
                     gState.score += 1000;
                     gameEndEmoji.textContent = '🪴🥖🦇🎂';
                     gameEndTitle.textContent = 'Misja zakończona sukcesem!';
@@ -2290,7 +2295,6 @@
                 }
             }
 
-            // 3. Komiksowy HUD
             drawComicHUD(w, h, b, gState.boss);
 
             gCtx.restore();
@@ -2299,6 +2303,7 @@
 
         function launchSecretGame() {
             bartmanTrigger.classList.add('morph-launching');
+            startGothamDarkMusic();
             playSfx('jump');
 
             setTimeout(() => {
@@ -2308,7 +2313,6 @@
                 gameOverlay.classList.add('active');
                 gameActive = true;
                 initGameState();
-                startGothamMusic();
                 if (gameAnimId) cancelAnimationFrame(gameAnimId);
                 updateAndDrawGame();
             }, 460);
@@ -2316,7 +2320,7 @@
 
         function closeSecretGame() {
             gameActive = false;
-            stopGothamMusic();
+            stopGothamDarkMusic();
             if (gameAnimId) {
                 cancelAnimationFrame(gameAnimId);
                 gameAnimId = null;
@@ -2333,7 +2337,7 @@
             gameEndModal.classList.add('hidden');
             gameEndModal.classList.remove('flex');
             initGameState();
-            startGothamMusic();
+            startGothamDarkMusic();
         });
     </script>
 </body>
