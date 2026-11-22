@@ -106,7 +106,7 @@
             100% { transform: scale(1.12, 0.84) translateY(14px); }
         }
 
-        /* Kurtyna płynnego przeskoku z Bat-Sygnałem */
+        /* Kurtyna płynnego przeskoku do Gotham */
         #transitionCurtain {
             position: fixed;
             inset: 0;
@@ -957,11 +957,10 @@
 
         // =========================================================================
         // KOMIKSOWA MINI-GRA: BATMAN vs RAFAŁ BRZÓZKA
-        // - Wyraźny Bat-Sygnał na niebie Gotham
-        // - Trudniejszy Rafał Brzózka (200 HP, dynamiczna animacja, odbijające się
-        //   kule pyłku / "piłki", chmury pyłków i pędzące brzózki w walce bossowej)
-        // - Lepsze rozmieszczenie monetek w łukach i bezpiecznych ścieżkach
-        // - Syntezator mowy czytający groźnym głosem Batmana oraz głosem Rafała
+        // - Prawdziwy Bat-Sygnał na niebie (świetlisty owal w chmurach bez lampy z dachu)
+        // - Wyraźny, niski, zachrypnięty głos Batmana oraz głos Rafała Brzózki
+        // - Trudniejszy Rafał Brzózka (300 HP, szybkie salwy piłek pyłkowych,
+        //   podwójne chmury pyłków i pędzące brzózki w walce bossowej)
         // =========================================================================
         const bartmanTrigger = document.getElementById('bartmanTrigger');
         const bartekHeroSvg = document.getElementById('bartekHeroSvg');
@@ -984,7 +983,7 @@
             "Znowu pyłki brzozy w całym Gotham.",
             "Przeskocz brzozę albo przejdź pod pyłkiem.",
             "Batwingi rozpraszają chmury pyłków w locie.",
-            "Nienawidzę brzóz, ale urodzin nie odpuszczę."
+            "Nienawidzę brzóz. Nie odpuszczę."
         ];
 
         let gameActive = false;
@@ -992,9 +991,20 @@
         let gameAnimId = null;
         let soundEnabled = true;
 
-        // --- SYNTEZATOR MOWY: GROŹNY GŁOS BATMANA I GŁOS RAFAŁA BRZÓZKI ---
-        let lastSpokenText = '';
+        // --- SYNTEZATOR MOWY: ZACHRYPNIĘTY GROŹNY GŁOS BATMANA I GŁOS RAFAŁA ---
+        let cachedVoices = [];
+        let lastSpokenKey = '';
         let lastSpeakTimestamp = 0;
+
+        function refreshVoicesList() {
+            if ('speechSynthesis' in window) {
+                cachedVoices = window.speechSynthesis.getVoices();
+            }
+        }
+        if ('speechSynthesis' in window) {
+            refreshVoicesList();
+            window.speechSynthesis.onvoiceschanged = refreshVoicesList;
+        }
 
         function cleanSpeechForTTS(text) {
             return text
@@ -1003,43 +1013,48 @@
                 .replace(/LVL\s*2/gi, 'poziomu drugiego')
                 .replace(/LVL\s*3/gi, 'maksymalnego poziomu')
                 .replace(/\(\d+\/\d+\)/g, '')
+                .replace(/!/g, '.')
                 .replace(/\s+/g, ' ')
                 .trim();
         }
 
-        function speakCharacterLine(character, rawText) {
+        function speakCharacterLine(character, rawText, priority = false) {
             if (!soundEnabled || !('speechSynthesis' in window)) return;
             const cleanText = cleanSpeechForTTS(rawText);
             if (!cleanText) return;
 
             const now = Date.now();
-            if (cleanText === lastSpokenText && now - lastSpeakTimestamp < 4500) return;
-            // Nie przerywaj poprzedniej kwestii, jeśli trwa krócej niż 1.6s
-            if (window.speechSynthesis.speaking && now - lastSpeakTimestamp < 1600) return;
+            const key = `${character}:${cleanText}`;
+            if (!priority && key === lastSpokenKey && now - lastSpeakTimestamp < 5000) return;
+            if (!priority && window.speechSynthesis.speaking && now - lastSpeakTimestamp < 2200) return;
 
-            lastSpokenText = cleanText;
+            lastSpokenKey = key;
             lastSpeakTimestamp = now;
 
             try {
                 window.speechSynthesis.cancel();
+                if (window.speechSynthesis.paused) {
+                    window.speechSynthesis.resume();
+                }
+
                 const utter = new SpeechSynthesisUtterance(cleanText);
                 utter.lang = 'pl-PL';
 
-                const voices = window.speechSynthesis.getVoices();
-                const plVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('pl'));
-                const maleVoice = plVoices.find(v => /adam|marek|paweł|pawel|krzysztof|male|męski/i.test(v.name)) || plVoices[0];
+                if (cachedVoices.length === 0) refreshVoicesList();
+                const plVoices = cachedVoices.filter(v => v.lang && v.lang.toLowerCase().startsWith('pl'));
+                const maleVoice = plVoices.find(v => /adam|marek|paweł|pawel|krzysztof|jacek|male|męski/i.test(v.name)) || plVoices[0];
                 if (maleVoice) {
                     utter.voice = maleVoice;
                 }
 
                 if (character === 'batman') {
-                    // Niski, poważny, groźny głos Batmana
-                    utter.pitch = 0.42;
-                    utter.rate = 0.88;
+                    // Maksymalnie niski, szorstki, groźny głos Batmana
+                    utter.pitch = 0.12;
+                    utter.rate = 0.84;
                     utter.volume = 1.0;
                 } else {
-                    // Wyższy, złośliwy głos Rafała Brzózki
-                    utter.pitch = 1.28;
+                    // Wyższy, drwiący głos Rafała Brzózki
+                    utter.pitch = 1.48;
                     utter.rate = 1.08;
                     utter.volume = 1.0;
                 }
@@ -1048,16 +1063,16 @@
             } catch (e) {}
         }
 
-        function setBatmanSpeech(text, duration = 120, speak = true) {
+        function setBatmanSpeech(text, duration = 125, speak = true, priority = false) {
             gState.batman.speech = text;
             gState.batman.speechTimer = duration;
-            if (speak) speakCharacterLine('batman', text);
+            if (speak) speakCharacterLine('batman', text, priority);
         }
 
-        function setBossSpeech(text, duration = 120, speak = true) {
+        function setBossSpeech(text, duration = 125, speak = true, priority = false) {
             gState.boss.speech = text;
             gState.boss.speechTimer = duration;
-            if (speak) speakCharacterLine('rafal', text);
+            if (speak) speakCharacterLine('rafal', text, priority);
         }
 
         // Groźna muzyka w stylu mrocznego Gotham (Tone.js)
@@ -1077,20 +1092,20 @@
                     oscillator: { type: 'sawtooth' },
                     envelope: { attack: 0.08, decay: 0.25, sustain: 0.65, release: 0.8 }
                 }).connect(lpFilter);
-                brassSynth.volume.value = -9;
+                brassSynth.volume.value = -12;
 
                 const stringSynth = new Tone.Synth({
                     oscillator: { type: 'sawtooth' },
                     envelope: { attack: 0.01, decay: 0.12, sustain: 0.1, release: 0.12 }
                 }).connect(lpFilter);
-                stringSynth.volume.value = -13;
+                stringSynth.volume.value = -16;
 
                 const timpani = new Tone.MembraneSynth({
                     pitchDecay: 0.06,
                     octaves: 5,
                     envelope: { attack: 0.005, decay: 0.45, sustain: 0, release: 0.4 }
                 }).toDestination();
-                timpani.volume.value = -7;
+                timpani.volume.value = -10;
 
                 gothamMusicNodes = { brassSynth, stringSynth, timpani, lpFilter, reverb };
 
@@ -1164,7 +1179,7 @@
                     oscillator: { type: type === 'sneeze' ? 'sawtooth' : 'triangle' },
                     envelope: { attack: 0.005, decay: 0.14, sustain: 0.05, release: 0.12 }
                 }).toDestination();
-                sfx.volume.value = -7;
+                sfx.volume.value = -8;
                 const now = Tone.now();
                 if (type === 'jump') {
                     sfx.triggerAttackRelease('C4', '16n', now);
@@ -1256,8 +1271,8 @@
                     maxHealth: 100,
                     invuln: 0,
                     runFrame: 0,
-                    speech: "Rafał rzuca pyłkami! Zbieraj monetki na Batwingi!",
-                    speechTimer: 145,
+                    speech: "Rafał ucieka. Zbieraj monetki na Batwingi.",
+                    speechTimer: 155,
                     eatingBun: false
                 },
                 brzozkaIntro: {
@@ -1272,16 +1287,16 @@
                     x: w + 180,
                     targetX: w - Math.max(135, w * 0.24),
                     y: groundY,
-                    hp: 200,           // Więcej życia u Rafała!
-                    maxHp: 200,
-                    minHpThisEncounter: 100,
+                    hp: 300,           // Trudniejszy Rafał Brzózka (300 HP!)
+                    maxHp: 300,
+                    minHpThisEncounter: 150,
                     animPhase: 0,
-                    attackCooldown: 62,
+                    attackCooldown: 46,
                     attackCounter: 0,
                     throwAnim: 0,
                     recoilX: 0,
-                    speech: "Zasypię Cię pyłkami i piłkami!",
-                    speechTimer: 125,
+                    speech: "Zasypię Cię piłkami i pyłkami!",
+                    speechTimer: 130,
                     hitFlash: 0
                 },
                 potAndBun: {
@@ -1298,17 +1313,17 @@
                 },
                 birches: [],
                 pollens: [],
-                pollenBalls: [], // Odbijające się piłki pyłkowe rzucane przez Rafała w walce bossowej
+                pollenBalls: [],
                 coinItems: [],
                 batarangs: [],
                 sparks: [],
                 spawnTimer: 40,
-                quoteCooldown: 190,
+                quoteCooldown: 210,
                 quoteIdx: 0,
                 shake: 0
             };
 
-            speakCharacterLine('rafal', gState.brzozkaIntro.speech);
+            speakCharacterLine('rafal', gState.brzozkaIntro.speech, true);
         }
 
         function jumpBatman() {
@@ -1327,7 +1342,7 @@
             if (gState.phase !== 'chase' && gState.phase !== 'boss') return;
             const lvl = getBatwingLevel(gState.coins);
             if (lvl === 0) {
-                setBatmanSpeech(`Potrzebujesz 5 monetek na Batwingi! (${gState.coins}/5) 🪙`, 85, true);
+                setBatmanSpeech(`Potrzebujesz 5 monetek na Batwingi! (${gState.coins}/5)`, 85, true, true);
                 playSfx('hit');
                 return;
             }
@@ -1349,7 +1364,7 @@
             if (!gameActive) return;
             if (gState.phase === 'intro') {
                 gState.phase = 'chase';
-                speakCharacterLine('batman', gState.batman.speech);
+                speakCharacterLine('batman', gState.batman.speech, true);
                 return;
             }
             const halfW = gameCanvas.width / 2;
@@ -1386,86 +1401,68 @@
             }
         }
 
-        // Wyraźny, czytelny Bat-Sygnał świecący z dachu w zachmurzone niebo Gotham
-        function drawBatSignalSky(w, h, groundY) {
+        // Prawdziwy Bat-Sygnał na niebie Gotham: świetlista projekcja na ciemnych chmurach (bez lampy z dachu)
+        function drawBatSignalSky(w, h) {
             gCtx.save();
 
-            const lampX = w * 0.13;
-            const lampY = groundY - Math.min(255, h * 0.37);
-            const sigX = w * 0.36;
+            const sigX = w * 0.34;
             const sigY = h * 0.21;
-            const rx = 56;
-            const ry = 38;
+            const rx = Math.min(72, Math.max(52, w * 0.08));
+            const ry = rx * 0.68;
 
-            // Skośny stożek światła z reflektora do tarczy Bat-Sygnału
-            const beamGrad = gCtx.createLinearGradient(lampX, lampY, sigX, sigY);
-            beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.62)');
-            beamGrad.addColorStop(0.5, 'rgba(253, 224, 71, 0.26)');
-            beamGrad.addColorStop(1, 'rgba(254, 249, 195, 0.42)');
-
-            gCtx.fillStyle = beamGrad;
-            gCtx.beginPath();
-            gCtx.moveTo(lampX - 7, lampY - 2);
-            gCtx.lineTo(lampX + 7, lampY + 2);
-            gCtx.lineTo(sigX + rx * 0.88, sigY + ry * 0.42);
-            gCtx.lineTo(sigX - rx * 0.88, sigY - ry * 0.42);
-            gCtx.closePath();
-            gCtx.fill();
-
-            // Obudowa reflektora na dachu wieżowca
-            gCtx.fillStyle = '#0f172a';
-            gCtx.strokeStyle = '#fbbf24';
-            gCtx.lineWidth = 2;
-            gCtx.fillRect(lampX - 8, lampY - 4, 16, 10);
-            gCtx.strokeRect(lampX - 8, lampY - 4, 16, 10);
-            gCtx.fillStyle = '#fef9c3';
-            gCtx.beginPath();
-            gCtx.arc(lampX + 4, lampY - 2, 5, 0, Math.PI * 2);
-            gCtx.fill();
-
-            // Zewnętrzna poświata wokół Bat-Sygnału na chmurach
-            gCtx.save();
             gCtx.translate(sigX, sigY);
-            gCtx.rotate(-0.2);
+            gCtx.rotate(-0.18);
 
-            const outerGlow = gCtx.createRadialGradient(0, 0, rx * 0.5, 0, 0, rx * 1.45);
-            outerGlow.addColorStop(0, 'rgba(254, 249, 195, 0.55)');
+            // Ciemne chmury wokół projekcji Bat-Sygnału
+            gCtx.fillStyle = 'rgba(15, 23, 42, 0.55)';
+            gCtx.beginPath();
+            gCtx.arc(-rx * 0.95, ry * 0.15, rx * 0.55, 0, Math.PI * 2);
+            gCtx.arc(rx * 0.95, -ry * 0.1, rx * 0.5, 0, Math.PI * 2);
+            gCtx.arc(0, -ry * 0.85, rx * 0.65, 0, Math.PI * 2);
+            gCtx.fill();
+
+            // Szeroka złota poświata na chmurach
+            const outerGlow = gCtx.createRadialGradient(0, 0, rx * 0.35, 0, 0, rx * 1.55);
+            outerGlow.addColorStop(0, 'rgba(254, 249, 195, 0.72)');
+            outerGlow.addColorStop(0.55, 'rgba(253, 224, 71, 0.28)');
             outerGlow.addColorStop(1, 'rgba(253, 224, 71, 0)');
             gCtx.fillStyle = outerGlow;
             gCtx.beginPath();
-            gCtx.ellipse(0, 0, rx * 1.45, ry * 1.45, 0, 0, Math.PI * 2);
+            gCtx.ellipse(0, 0, rx * 1.55, ry * 1.55, 0, 0, Math.PI * 2);
             gCtx.fill();
 
-            // Wyraźna żółta tarcza reflektora na niebie
-            gCtx.fillStyle = '#fef08a';
-            gCtx.strokeStyle = 'rgba(253, 224, 71, 0.9)';
-            gCtx.lineWidth = 2.5;
+            // Jasny, świetlisty owal Bat-Sygnału przebijający chmury
+            const discGrad = gCtx.createRadialGradient(-rx * 0.15, -ry * 0.15, 4, 0, 0, rx);
+            discGrad.addColorStop(0, '#fefce8');
+            discGrad.addColorStop(0.7, '#fef08a');
+            discGrad.addColorStop(1, 'rgba(250, 204, 21, 0.82)');
+            gCtx.fillStyle = discGrad;
             gCtx.beginPath();
             gCtx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
             gCtx.fill();
-            gCtx.stroke();
 
-            // Ostry, klasyczny czarny emblemat nietoperza wewnątrz Bat-Sygnału
-            gCtx.fillStyle = '#090d16';
+            // Ostry, klasyczny symbol nietoperza na środku tarczy
+            const s = rx / 56;
+            gCtx.scale(s, s);
+            gCtx.fillStyle = '#070d19';
             gCtx.beginPath();
-            gCtx.moveTo(-40, -5);
-            gCtx.quadraticCurveTo(-24, -17, -10, -6);
-            gCtx.lineTo(-5, -17);
+            gCtx.moveTo(-42, -5);
+            gCtx.quadraticCurveTo(-25, -18, -10, -6);
+            gCtx.lineTo(-5, -18);
             gCtx.lineTo(-2, -10);
             gCtx.lineTo(2, -10);
-            gCtx.lineTo(5, -17);
+            gCtx.lineTo(5, -18);
             gCtx.lineTo(10, -6);
-            gCtx.quadraticCurveTo(24, -17, 40, -5);
-            gCtx.quadraticCurveTo(30, 5, 22, 13);
-            gCtx.quadraticCurveTo(15, 6, 9, 13);
-            gCtx.quadraticCurveTo(4, 8, 0, 21);
-            gCtx.quadraticCurveTo(-4, 8, -9, 13);
-            gCtx.quadraticCurveTo(-15, 6, -22, 13);
-            gCtx.quadraticCurveTo(-30, 5, -40, -5);
+            gCtx.quadraticCurveTo(25, -18, 42, -5);
+            gCtx.quadraticCurveTo(31, 5, 23, 14);
+            gCtx.quadraticCurveTo(16, 6, 9, 14);
+            gCtx.quadraticCurveTo(4, 8, 0, 22);
+            gCtx.quadraticCurveTo(-4, 8, -9, 14);
+            gCtx.quadraticCurveTo(-16, 6, -23, 14);
+            gCtx.quadraticCurveTo(-31, 5, -42, -5);
             gCtx.closePath();
             gCtx.fill();
 
-            gCtx.restore();
             gCtx.restore();
         }
 
@@ -1600,11 +1597,11 @@
             gCtx.restore();
         }
 
-        // Ulepszony, dynamiczny Rafał Brzózka z przegubową animacją ramion, tułowia i gałęzi
+        // Dynamiczny Rafał Brzózka z animacją zamachu obiema rękami, kołysania gałęziami i gniewną mimiką
         function drawComicRafalBrzozka(x, y, animPhase, hitFlash, throwAnim = 0, recoilX = 0) {
             gCtx.save();
-            const hopY = -Math.abs(Math.sin(animPhase * 1.4)) * 10;
-            const leanAngle = throwAnim > 0 ? -0.14 : Math.sin(animPhase) * 0.05;
+            const hopY = -Math.abs(Math.sin(animPhase * 1.5)) * 12;
+            const leanAngle = throwAnim > 0 ? -0.16 : Math.sin(animPhase) * 0.06;
             gCtx.translate(x + recoilX, y + hopY);
             const scale = Math.min(1.48, Math.max(1.18, gameCanvas.height / 540));
             gCtx.scale(scale, scale);
@@ -1616,8 +1613,7 @@
             gCtx.lineWidth = 2.8;
             gCtx.strokeStyle = '#090d16';
 
-            // Korzeniowy pień z dynamicznym krokiem
-            const stride = Math.sin(animPhase * 1.4) * 5;
+            const stride = Math.sin(animPhase * 1.5) * 6;
             gCtx.fillStyle = '#f1f5f9';
             gCtx.beginPath();
             gCtx.roundRect(-24 - stride * 0.5, -46, 20, 46 - hopY / scale, 4);
@@ -1633,19 +1629,16 @@
             gCtx.fillRect(-20 - stride * 0.5, -34, 13, 3.5);
             gCtx.fillRect(7 + stride * 0.5, -22, 13, 3.5);
 
-            // Górna część ciała pochylająca się przy rzucie
             gCtx.save();
             gCtx.translate(0, -46);
             gCtx.rotate(leanAngle);
 
-            // Granatowa marynarka
             gCtx.fillStyle = '#2563eb';
             gCtx.beginPath();
             gCtx.roundRect(-48, -86, 96, 88, 16);
             gCtx.fill();
             gCtx.stroke();
 
-            // Biała koszula i krawat
             gCtx.fillStyle = '#f8fafc';
             gCtx.beginPath();
             gCtx.moveTo(-17, -86);
@@ -1665,7 +1658,6 @@
             gCtx.closePath();
             gCtx.fill();
 
-            // Klapy marynarki
             gCtx.fillStyle = '#1d4ed8';
             gCtx.beginPath();
             gCtx.moveTo(-17, -86);
@@ -1683,7 +1675,6 @@
             gCtx.fill();
             gCtx.stroke();
 
-            // Czerwona poszetka
             gCtx.fillStyle = '#dc2626';
             gCtx.beginPath();
             gCtx.moveTo(18, -62);
@@ -1693,12 +1684,12 @@
             gCtx.fill();
             gCtx.stroke();
 
-            // Lewa ręka z wyraźnym zamachem do rzutu piłką/pyłkiem
+            // Lewa ręka z zamachem do rzutu piłką
             gCtx.save();
             gCtx.translate(-48, -68);
             const leftArmAngle = throwAnim > 0
-                ? -1.25 + (18 - throwAnim) * 0.11
-                : Math.sin(animPhase * 1.4) * 0.25 - 0.2;
+                ? -1.35 + (18 - throwAnim) * 0.12
+                : Math.sin(animPhase * 1.5) * 0.28 - 0.2;
             gCtx.rotate(leftArmAngle);
             gCtx.fillStyle = '#2563eb';
             gCtx.beginPath();
@@ -1710,8 +1701,7 @@
             gCtx.arc(-3, 48, 12, 0, Math.PI * 2);
             gCtx.fill();
             gCtx.stroke();
-            // Piłka pyłkowa w dłoni w trakcie zamachu
-            if (throwAnim > 10) {
+            if (throwAnim > 9) {
                 gCtx.fillStyle = '#facc15';
                 gCtx.beginPath();
                 gCtx.arc(-14, 52, 13, 0, Math.PI * 2);
@@ -1724,8 +1714,8 @@
             gCtx.save();
             gCtx.translate(48, -68);
             const rightArmAngle = throwAnim > 0
-                ? 0.45
-                : -Math.sin(animPhase * 1.4) * 0.25 + 0.15;
+                ? 0.55
+                : -Math.sin(animPhase * 1.5) * 0.28 + 0.15;
             gCtx.rotate(rightArmAngle);
             gCtx.fillStyle = '#2563eb';
             gCtx.beginPath();
@@ -1742,7 +1732,6 @@
             gCtx.stroke();
             gCtx.restore();
 
-            // Brzozowa szyja
             gCtx.fillStyle = '#f8fafc';
             gCtx.fillRect(-15, -102, 30, 18);
             gCtx.strokeRect(-15, -102, 30, 18);
@@ -1750,8 +1739,7 @@
             gCtx.fillRect(-11, -97, 12, 3);
             gCtx.fillRect(2, -91, 11, 3);
 
-            // Falujące gałęzie brzozowe zamiast włosów
-            const sway = Math.sin(animPhase * 2) * 5;
+            const sway = Math.sin(animPhase * 2.2) * 6;
             const trunks = [
                 { x1: -17, y1: -142, x2: -54 + sway, y2: -182, w: 13 },
                 { x1: -2,  y1: -146, x2: -10 + sway * 0.7, y2: -188, w: 12 },
@@ -1777,7 +1765,6 @@
                 gCtx.fillRect((tr.x1 + tr.x2) / 2 - 5, (tr.y1 + tr.y2) / 2, 10, 3.5);
             });
 
-            // Liście brzozy
             gCtx.lineWidth = 2.2;
             gCtx.strokeStyle = '#090d16';
             const leaves = [
@@ -1792,7 +1779,6 @@
                 gCtx.stroke();
             });
 
-            // Twarz
             gCtx.lineWidth = 2.8;
             gCtx.fillStyle = '#f1c29f';
             gCtx.beginPath();
@@ -1800,7 +1786,6 @@
             gCtx.fill();
             gCtx.stroke();
 
-            // Zmarszczki na czole
             gCtx.strokeStyle = '#b48362';
             gCtx.lineWidth = 1.6;
             gCtx.beginPath();
@@ -1810,7 +1795,6 @@
             gCtx.lineTo(8, -137);
             gCtx.stroke();
 
-            // Szara broda
             gCtx.strokeStyle = '#090d16';
             gCtx.lineWidth = 2.5;
             gCtx.fillStyle = '#64748b';
@@ -1819,7 +1803,6 @@
             gCtx.fill();
             gCtx.stroke();
 
-            // Usta (otwarte w złowrogim śmiechu przy rzucie)
             if (throwAnim > 0) {
                 gCtx.fillStyle = '#7f1d1d';
                 gCtx.beginPath();
@@ -1839,7 +1822,6 @@
                 gCtx.stroke();
             }
 
-            // Nos i groźne brwi
             gCtx.strokeStyle = '#854d27';
             gCtx.lineWidth = 2.2;
             gCtx.beginPath();
@@ -1857,7 +1839,6 @@
             gCtx.lineTo(5, -131);
             gCtx.stroke();
 
-            // Oczy i złote okulary
             gCtx.fillStyle = '#ffffff';
             gCtx.fillRect(-16, -129, 10, 6);
             gCtx.fillRect(6, -129, 10, 6);
@@ -1948,7 +1929,6 @@
             gCtx.restore();
         }
 
-        // Odbijająca się piłka pyłkowa rzucana przez Rafała w walce z bossem
         function drawPollenBall(ball) {
             gCtx.save();
             gCtx.translate(ball.x, ball.y);
@@ -1962,7 +1942,6 @@
             gCtx.fill();
             gCtx.stroke();
 
-            // Wzór piłki + brzozowe cętki
             gCtx.strokeStyle = '#854d0e';
             gCtx.lineWidth = 2;
             gCtx.beginPath();
@@ -2126,7 +2105,6 @@
             gCtx.fillStyle = b.health > 40 ? '#22c55e' : '#dc2626';
             gCtx.fillRect(barLeft + 2, boxY + 16, Math.max(0, (barWidth - 4) * (b.health / b.maxHealth)), 10);
 
-            // Licznik monetek + poziom Batwingów
             const lvl = getBatwingLevel(gState.coins);
             const bwLabel = lvl === 0 ? `BATWINGI: ZABL. (${gState.coins}/5)` : `BATWINGI: LVL ${lvl}${lvl === 3 ? ' MAX' : ''}`;
             gCtx.fillStyle = '#fbbf24';
@@ -2137,7 +2115,7 @@
             gCtx.font = 'bold 10px Inter, sans-serif';
             gCtx.fillText(`PUNKTY: ${gState.score}  |  ETAP ${gState.runNumber}/2`, barLeft, boxY + 56);
 
-            // Prawa strona HUD: Boss HP (200 HP) albo postęp biegu
+            // Prawa strona HUD: Boss HP (300 HP) albo postęp biegu
             if (gState.phase === 'boss' || gState.phase === 'boss_retreat' || gState.phase === 'victory_cutscene') {
                 const bossBarW = Math.min(185, w * 0.36);
                 const bossBarX = w - bossBarW - 14;
@@ -2248,6 +2226,9 @@
             gCtx.fillStyle = skyGrad;
             gCtx.fillRect(0, 0, w, h);
 
+            // Prawdziwy Bat-Sygnał na niebie (za wieżowcami, bez żadnej lampy na dachu)
+            drawBatSignalSky(w, h);
+
             // Sylwetki wieżowców Gotham z oświetlonymi oknami
             const scrollSpeed = (gState.phase === 'chase') ? gState.speed * 0.45 : (gState.phase === 'boss' ? 0.9 : 0);
             gState.buildings.forEach(bld => {
@@ -2265,9 +2246,6 @@
                     gCtx.fillRect(bld.x + win.wx, groundY - bld.h + win.wy, 7, 10);
                 });
             });
-
-            // Wyraźny Bat-Sygnał świecący z dachu w niebo Gotham
-            drawBatSignalSky(w, h, groundY);
 
             gCtx.fillStyle = '#1e293b';
             gCtx.fillRect(0, groundY - 26, w, 26);
@@ -2298,7 +2276,7 @@
                         high: false
                     });
                     playSfx('throw');
-                    speakCharacterLine('batman', b.speech);
+                    speakCharacterLine('batman', b.speech, true);
                 }
 
                 if (gState.timer > 60) {
@@ -2335,9 +2313,9 @@
                 gState.quoteCooldown--;
                 if (gState.quoteCooldown <= 0 && b.speechTimer <= 0) {
                     const line = RUN_QUOTES[gState.quoteIdx % RUN_QUOTES.length];
-                    setBatmanSpeech(line, 115, true);
+                    setBatmanSpeech(line, 115, true, false);
                     gState.quoteIdx++;
-                    gState.quoteCooldown = 240;
+                    gState.quoteCooldown = 250;
                 }
 
                 // Generowanie przeszkód i ergonomicznie rozmieszczonych monetek w biegu
@@ -2349,7 +2327,6 @@
                     if (gState.spawnTimer <= 0) {
                         const pattern = Math.random();
                         if (pattern < 0.34) {
-                            // Rosnąca brzoza + łuk 4 monetek dokładnie po krzywej skoku
                             const bh = 62 + Math.random() * 22;
                             gState.birches.push({
                                 x: w + 65,
@@ -2362,7 +2339,6 @@
                             gState.coinItems.push({ x: w + 82, y: groundY - bh - 46 });
                             gState.coinItems.push({ x: w + 115, y: groundY - 58 });
                         } else if (pattern < 0.67) {
-                            // Niski pyłek + bezpieczna linia 3 monetek nad nim
                             gState.pollens.push({
                                 x: w + 55,
                                 y: groundY - 36,
@@ -2373,7 +2349,6 @@
                             gState.coinItems.push({ x: w + 60, y: groundY - 106 });
                             gState.coinItems.push({ x: w + 95, y: groundY - 96 });
                         } else {
-                            // Wysoki pyłek + łatwa linia 3 monetek po ziemi pod nim (do zebrania w biegu!)
                             gState.pollens.push({
                                 x: w + 55,
                                 y: groundY - 118,
@@ -2393,31 +2368,32 @@
                         gState.phase = 'boss';
                         gState.boss.active = true;
                         gState.boss.x = w + 160;
-                        gState.boss.minHpThisEncounter = gState.runNumber === 1 ? 100 : 0;
+                        gState.boss.minHpThisEncounter = gState.runNumber === 1 ? 150 : 0;
                         gState.birches = [];
                         setBatmanSpeech(
                             gState.runNumber === 1
-                                ? "Mam Cię! Odbiorę Ci połowę sił!"
-                                : "Drugi bieg zaliczony! Teraz ostateczny finał!",
+                                ? "Mam Cię. Zbiję Ci połowę sił."
+                                : "Drugi bieg za nami. Czas na finał.",
                             140,
+                            true,
                             true
                         );
                         setBossSpeech(
                             gState.runNumber === 1
-                                ? "Spróbuj ominąć moje piłki i pyłki!"
-                                : "Teraz rzucam wszystkim co mam!",
+                                ? "Spróbuj przetrwać moje salwy!"
+                                : "Teraz nie masz żadnych szans!",
                             130,
                             false
                         );
                     }
                 }
 
-                // Rosnące / pędzące brzozy (również w walce z bossem!)
+                // Rosnące / pędzące brzozy (również w walce z bossem)
                 for (let i = gState.birches.length - 1; i >= 0; i--) {
                     const br = gState.birches[i];
-                    br.x -= gState.speed * (br.bossSpawned ? 1.15 : 1);
+                    br.x -= gState.speed * (br.bossSpawned ? 1.28 : 1);
                     if (br.growth < 1) {
-                        br.growth = Math.min(1, br.growth + 0.06);
+                        br.growth = Math.min(1, br.growth + 0.07);
                     }
                     drawGrowingBirch(br);
 
@@ -2430,7 +2406,7 @@
                         b.health = Math.max(0, b.health - 22);
                         b.invuln = 55;
                         gState.shake = 10;
-                        setBatmanSpeech("Auć! Wpadłem w młodą brzozę!", 95, true);
+                        setBatmanSpeech("Wpadłem w brzozę. Muszę uważać.", 95, true, true);
                         playSfx('sneeze');
                     }
 
@@ -2454,9 +2430,10 @@
                             playSfx('powerup');
                             setBatmanSpeech(
                                 newLvl === 1
-                                    ? "Batwingi odblokowane! Rozpraszam pyłki i atakuję Rafała!"
-                                    : `Moc Batwingów wzrosła do poziomu ${newLvl}!`,
+                                    ? "Batwingi gotowe. Rozpraszam pyłki."
+                                    : `Moc Batwingów poziom ${newLvl}.`,
                                 145,
+                                true,
                                 true
                             );
                         } else {
@@ -2468,98 +2445,120 @@
                     if (c.x < -40) gState.coinItems.splice(i, 1);
                 }
 
-                // Boss: Trudniejszy Rafał Brzózka (rzuca piłkami pyłkowymi, chmurami pyłku i wypuszcza brzózki)
+                // Boss: Trudniejszy Rafał Brzózka (300 HP, szybkie salwy piłek pyłkowych, fali pyłków i brzóz)
                 if (gState.phase === 'boss') {
                     const boss = gState.boss;
-                    boss.animPhase += 0.13;
+                    boss.animPhase += 0.15;
                     if (boss.hitFlash > 0) boss.hitFlash--;
                     if (boss.throwAnim > 0) boss.throwAnim--;
                     if (boss.recoilX > 0) boss.recoilX = Math.max(0, boss.recoilX - 1.5);
 
                     if (boss.x > boss.targetX) {
-                        boss.x -= 4.8;
+                        boss.x -= 5.2;
                     } else {
                         boss.attackCooldown--;
                         if (boss.attackCooldown <= 0) {
                             boss.throwAnim = 18;
                             boss.attackCounter++;
                             const roll = boss.attackCounter % 4;
+                            const speedMult = gState.runNumber === 2 ? 1.42 : 1.24;
 
                             if (roll === 1) {
-                                // Rzut ciężką odbijającą się piłką pyłkową!
+                                // Salwa 2 (lub 3 w finale) odbijających się piłek pyłkowych
                                 gState.pollenBalls.push({
                                     x: boss.x - 62,
                                     y: groundY - 95,
-                                    vx: -(gState.speed * (gState.runNumber === 2 ? 1.25 : 1.08)),
-                                    vy: -4.5,
+                                    vx: -(gState.speed * speedMult),
+                                    vy: -4.2,
                                     r: 17,
                                     rot: 0
                                 });
+                                gState.pollenBalls.push({
+                                    x: boss.x - 10,
+                                    y: groundY - 135,
+                                    vx: -(gState.speed * (speedMult * 0.94)),
+                                    vy: -8.5,
+                                    r: 16,
+                                    rot: 1.2
+                                });
                                 if (gState.runNumber === 2) {
                                     gState.pollenBalls.push({
-                                        x: boss.x - 30,
-                                        y: groundY - 125,
-                                        vx: -(gState.speed * 1.12),
-                                        vy: -7.5,
-                                        r: 16,
-                                        rot: 1
+                                        x: boss.x + 40,
+                                        y: groundY - 70,
+                                        vx: -(gState.speed * 1.48),
+                                        vy: -2.5,
+                                        r: 15,
+                                        rot: 2.1
                                     });
                                 }
                                 if (boss.speechTimer <= 0) {
-                                    setBossSpeech("Łap moją brzozową piłkę!", 100, true);
+                                    setBossSpeech("Łap serię moich piłek!", 100, true, false);
                                 }
                             } else if (roll === 2) {
-                                // Podwójna fala pyłków (górny + dolny z przesunięciem)
+                                // Potrójna fala chmur pyłków na różnych wysokościach
                                 gState.pollens.push({
                                     x: boss.x - 65,
                                     y: groundY - 38,
-                                    vx: -(gState.speed * 1.24),
+                                    vx: -(gState.speed * speedMult),
                                     high: false
                                 });
                                 gState.pollens.push({
-                                    x: boss.x + 75,
+                                    x: boss.x + 35,
                                     y: groundY - 116,
-                                    vx: -(gState.speed * 1.24),
+                                    vx: -(gState.speed * speedMult),
                                     high: true
                                 });
+                                gState.pollens.push({
+                                    x: boss.x + 135,
+                                    y: groundY - 40,
+                                    vx: -(gState.speed * (speedMult * 1.05)),
+                                    high: false
+                                });
                             } else if (roll === 3) {
-                                // Pędząca brzózka po ziemi + chmura pyłku
+                                // Pędząca brzózka + szybka piłka z góry
                                 gState.birches.push({
                                     x: boss.x - 45,
                                     y: groundY,
-                                    height: 64,
-                                    growth: 0.25,
+                                    height: 68,
+                                    growth: 0.3,
                                     bossSpawned: true
                                 });
+                                gState.pollenBalls.push({
+                                    x: boss.x - 20,
+                                    y: groundY - 140,
+                                    vx: -(gState.speed * (speedMult * 1.06)),
+                                    vy: -6.5,
+                                    r: 17,
+                                    rot: 0.5
+                                });
                                 if (boss.speechTimer <= 0) {
-                                    setBossSpeech("Wyrastajcie brzozy! Apsik!", 100, true);
+                                    setBossSpeech("Wyrastajcie brzozy! Apsik!", 100, true, false);
                                 }
                             } else {
-                                // Szybka piłka + wysoki pyłek
+                                // Szybka niska piłka + wysoki pyłek jednocześnie
                                 gState.pollenBalls.push({
                                     x: boss.x - 62,
-                                    y: groundY - 75,
-                                    vx: -(gState.speed * 1.3),
+                                    y: groundY - 68,
+                                    vx: -(gState.speed * (speedMult * 1.1)),
                                     vy: -2.0,
                                     r: 18,
                                     rot: 0
                                 });
                                 gState.pollens.push({
-                                    x: boss.x - 10,
+                                    x: boss.x - 30,
                                     y: groundY - 122,
-                                    vx: -(gState.speed * 1.18),
+                                    vx: -(gState.speed * speedMult),
                                     high: true
                                 });
                             }
 
-                            // Co pewien czas rzuć monetki nad areną bossa, by gracz mógł doładować Batwingi!
                             if (boss.attackCounter % 3 === 0) {
-                                gState.coinItems.push({ x: boss.x - 90, y: groundY - 115 });
+                                gState.coinItems.push({ x: boss.x - 95, y: groundY - 115 });
                                 gState.coinItems.push({ x: boss.x - 50, y: groundY - 130 });
                             }
 
                             playSfx('throw');
-                            boss.attackCooldown = gState.runNumber === 2 ? 48 : 58;
+                            boss.attackCooldown = gState.runNumber === 2 ? 36 : 44;
                         }
                     }
 
@@ -2570,7 +2569,7 @@
                     }
                 } else if (gState.phase === 'boss_retreat') {
                     const boss = gState.boss;
-                    boss.x += 7.5;
+                    boss.x += 7.8;
                     drawComicRafalBrzozka(boss.x, boss.y, gState.timer * 0.28, 0, 0, 0);
                     drawSpeechBubble(boss.x - 15, boss.y - 285, "Zabrałeś mi połowę życia! Dogonić mnie drugi raz nie zdołasz!", '#fef08a', '#0f172a');
 
@@ -2578,9 +2577,9 @@
                         gState.runNumber = 2;
                         gState.distance = 0;
                         gState.targetDistance = 1400;
-                        gState.speed *= 1.12;
+                        gState.speed *= 1.14;
                         gState.phase = 'chase';
-                        setBatmanSpeech("Drugi bieg! Zbieraj monetki i dopadnij go!", 140, true);
+                        setBatmanSpeech("Drugi bieg. Dopadnę go.", 140, true, true);
                     }
                 }
 
@@ -2605,10 +2604,10 @@
                         b.invuln === 0 &&
                         Math.hypot(b.x - ball.x, batCenterY - ball.y) < ball.r + 22
                     ) {
-                        b.health = Math.max(0, b.health - 22);
-                        b.invuln = 50;
+                        b.health = Math.max(0, b.health - 24);
+                        b.invuln = 48;
                         gState.shake = 10;
-                        setBatmanSpeech("Dostałem brzozową piłką! Rozbijaj je Batwingami!", 105, true);
+                        setBatmanSpeech("Brzozowa piłka. Rozbiję je Batwingami.", 105, true, true);
                         playSfx('sneeze');
                         spawnDustBurst(ball.x, ball.y, '#facc15', 14);
                         gState.pollenBalls.splice(i, 1);
@@ -2631,13 +2630,14 @@
                         Math.abs(batCenterY - pol.y) < 32
                     ) {
                         b.health = Math.max(0, b.health - 20);
-                        b.invuln = 48;
+                        b.invuln = 46;
                         gState.shake = 8;
                         setBatmanSpeech(
                             pol.high
-                                ? "Apsik! Trzeba było przebiec pod pyłkiem!"
-                                : "Apsik! Przeskocz nad pyłkiem albo rozprosz go Batwingiem!",
+                                ? "Trzeba przebiec nisko pod pyłkiem."
+                                : "Przeskocz pyłek albo rozprosz go Batwingiem.",
                             105,
+                            true,
                             true
                         );
                         playSfx('sneeze');
@@ -2721,13 +2721,14 @@
                             playSfx('hit');
                             spawnDustBurst(bt.x, bt.y, '#4ade80', 10);
 
-                            if (gState.runNumber === 1 && boss.hp <= 100) {
-                                boss.hp = 100;
+                            if (gState.runNumber === 1 && boss.hp <= 150) {
+                                boss.hp = 150;
                                 gState.phase = 'boss_retreat';
                                 gState.pollens = [];
                                 gState.pollenBalls = [];
+                                gState.birches = [];
                                 gState.batarangs = [];
-                                setBatmanSpeech("Została mu połowa życia! Ucieka, gonimy go w drugim biegu!", 145, true);
+                                setBatmanSpeech("Połowa życia zbita. Ucieka, gonimy go.", 145, true, true);
                                 setBossSpeech("Zabrałeś mi połowę życia! Dogonić mnie drugi raz nie zdołasz!", 145, false);
                                 playSfx('powerup');
                             } else if (gState.runNumber === 2 && boss.hp <= 0) {
@@ -2750,7 +2751,7 @@
                                 };
                                 b.y = groundY;
                                 b.vy = 0;
-                                setBatmanSpeech("Druga połowa życia zbita! Wylądował w doniczce!", 145, true);
+                                setBatmanSpeech("Koniec. Rafał wylądował w doniczce.", 145, true, true);
                                 playSfx('heal');
                             }
                         }
@@ -2784,8 +2785,8 @@
                 if (b.health <= 0) {
                     gState.phase = 'gameover';
                     stopGothamDarkMusic();
-                    const endLine = "Apsik! Zdrowie spadło do zera! Omijaj brzozy i rozbijaj piłki Batwingami!";
-                    speakCharacterLine('batman', endLine);
+                    const endLine = "Pyłki okazały się silniejsze. Spróbuj ponownie.";
+                    speakCharacterLine('batman', endLine, true);
                     gameEndEmoji.textContent = '🤧🌳🦇';
                     gameEndTitle.textContent = 'Pyłki okazały się silniejsze!';
                     gameEndSpeech.textContent = `„${endLine}”`;
@@ -2814,7 +2815,7 @@
                     } else {
                         pb.bunCollected = true;
                         b.eatingBun = true;
-                        setBatmanSpeech("Nienawidzę brzóz! Wszystkiego najlepszego, Bartek!", 260, true);
+                        setBatmanSpeech("Nienawidzę brzóz. Wszystkiego najlepszego, Bartek.", 260, true, true);
                         playSfx('bun');
                     }
                 }
@@ -2849,10 +2850,7 @@
             if (isLaunching || gameActive) return;
             isLaunching = true;
 
-            // Rozgrzej głosy syntezatora mowy przy kliknięciu użytkownika
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.getVoices();
-            }
+            refreshVoicesList();
 
             const rect = bartmanTrigger.getBoundingClientRect();
             const w = window.innerWidth;
